@@ -26,6 +26,7 @@ data Exp = Num Integer
 -- | The environment with the list of deferred substitutions. 
 type DefrdSub = [(Id, Value)] 
 
+
 -- | The value data type.
 -- 
 -- In this language (F4LAE), an expression
@@ -36,7 +37,7 @@ type DefrdSub = [(Id, Value)]
 --
 data Value = NumValue Integer
            | Closure FormalArg Exp DefrdSub
-           | ExpV Exp DefrdSub 
+           | ExpV Exp DefrdSub
      deriving(Show, Eq)
 
 -- | The interpreter function \0/
@@ -48,14 +49,14 @@ interp (Num n) ds decs = NumValue n
 -- the interpreter for an add expression.                            
 interp (Add e1 e2) ds decs = NumValue (v1 + v2) 
   where
-    NumValue v1 = strict (interp e1 ds decs) decs 
-    NumValue v2 = strict (interp e2 ds decs) decs 
+    (NumValue v1, ds2) = strict (interp e1 ds decs) ds decs 
+    NumValue v2 = fst(strict (interp e2 ds2 decs) ds decs)
 
 -- the interpreter for a sub expression. 
 interp (Sub e1 e2) ds decs = NumValue (v1 - v2) 
   where
-    NumValue v1 = strict (interp e1 ds decs) decs
-    NumValue v2 = strict (interp e2 ds decs) decs
+    (NumValue v1, ds2) = strict (interp e1 ds decs) ds decs
+    NumValue v2 = fst(strict (interp e2 ds2 decs) ds decs)
 
 -- the interpreter for a let expression.
 -- note here that, to improve reuse, we actually
@@ -97,14 +98,25 @@ interp (Lambda farg body) ds decs = Closure farg body ds
 -- case
 interp (LambdaApp e1 e2) ds decs = interp body env decs -- we interpret considering the new environment
   where
-    Closure farg body ds0 = strict (interp e1 ds decs) decs  -- we expect e1 to evaluate to a closure.
+    Closure farg body ds0 = fst(strict (interp e1 ds decs) ds decs)  -- we expect e1 to evaluate to a closure.
     expV = ExpV e2 ds                   -- ds0 is the deferred substitutions at the lambda declaration
     env  = (farg,expV):ds0              -- env is the original environment (ds0) + a new mapping
 
-strict :: Value -> [FunDec] -> Value
-strict n@(NumValue v) _ = n
-strict c@(Closure farg body ds) _ = c
-strict (ExpV e1 ds) decs = strict (interp e1 ds decs) decs
+strict :: Value -> DefrdSub -> [FunDec] -> (Value, DefrdSub)
+strict n@(NumValue v) env _ = (n,env)
+
+strict c@(Closure farg body ds) env _ = (c,env)
+
+strict e@(ExpV e1 ds) env decs =  strict  val env2 decs 
+  where
+    val = interp e1 ds decs
+    env2 = search e val env
+
+search :: Value -> Value -> DefrdSub -> DefrdSub
+search _ _ [] = []
+search expV newV ((id, val):xs)  
+ | val == expV = (id, newV) : search expV newV xs
+ | otherwise   = (id, val)  : search expV newV xs
 
 -- a new lookup function.   
 lookup :: Id -> (a -> String) -> [a] -> Maybe a
