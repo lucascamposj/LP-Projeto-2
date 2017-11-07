@@ -49,14 +49,14 @@ interp (Num n) ds decs = NumValue n
 -- the interpreter for an add expression.                            
 interp (Add e1 e2) ds decs = NumValue (v1 + v2) 
   where
-    (NumValue v1, ds2) = strict (interp e1 ds decs) ds decs 
-    NumValue v2 = fst(strict (interp e2 ds2 decs) ds decs)
+    (NumValue v1, ds2) = eval e1 ds decs 
+    NumValue v2 = fst(eval e2 ds2 decs)
 
 -- the interpreter for a sub expression. 
 interp (Sub e1 e2) ds decs = NumValue (v1 - v2) 
   where
-    (NumValue v1, ds2) = strict (interp e1 ds decs) ds decs
-    NumValue v2 = fst(strict (interp e2 ds2 decs) ds decs)
+    (NumValue v1, ds2) = eval e1 ds decs
+    NumValue v2 = fst(eval e2 ds2 decs)
 
 -- the interpreter for a let expression.
 -- note here that, to improve reuse, we actually
@@ -98,25 +98,33 @@ interp (Lambda farg body) ds decs = Closure farg body ds
 -- case
 interp (LambdaApp e1 e2) ds decs = interp body env decs -- we interpret considering the new environment
   where
-    Closure farg body ds0 = fst(strict (interp e1 ds decs) ds decs)  -- we expect e1 to evaluate to a closure.
+    Closure farg body ds0 = fst(eval e1 ds decs)  -- we expect e1 to evaluate to a closure.
     expV = ExpV e2 ds                   -- ds0 is the deferred substitutions at the lambda declaration
     env  = (farg,expV):ds0              -- env is the original environment (ds0) + a new mapping
 
-strict :: Value -> DefrdSub -> [FunDec] -> (Value, DefrdSub)
-strict n@(NumValue v) env _ = (n,env)
 
-strict c@(Closure farg body ds) env _ = (c,env)
-
-strict e@(ExpV e1 ds) env decs =  strict  val env2 decs 
+strict :: Value -> DefrdSub -> [FunDec] -> Value
+strict n@(NumValue v) env _ = n
+strict c@(Closure farg body ds) env _ = c
+strict e@(ExpV e1 ds) env decs =  strict val env decs 
   where
     val = interp e1 ds decs
-    env2 = search e val env
 
-search :: Value -> Value -> DefrdSub -> DefrdSub
+eval :: Exp -> DefrdSub -> [FunDec] -> (Value, DefrdSub)
+eval e1 ds decs = 
+  let value = interp e1 ds decs
+  in let val = strict value ds decs 
+    in case e1 of
+      (Ref v)   -> case value of
+                     (ExpV _ _) -> (val, search v val ds)
+                     otherwise  -> (val, ds)
+      otherwise -> (val, ds)
+
+search :: Id-> Value -> DefrdSub -> DefrdSub
 search _ _ [] = []
-search expV newV ((id, val):xs)  
- | val == expV = (id, newV) : search expV newV xs
- | otherwise   = (id, val)  : search expV newV xs
+search refId newV ((id, val):xs)  
+ | refId == id = (id, newV) : xs
+ | otherwise   = (id, val)  : search refId newV xs
 
 -- a new lookup function.   
 lookup :: Id -> (a -> String) -> [a] -> Maybe a

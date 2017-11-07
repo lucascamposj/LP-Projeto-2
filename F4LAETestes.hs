@@ -18,14 +18,14 @@ tc03 = TestCase (assertEqual "for let x = 3 in x + x"
                              (NumValue 6)
                              (eval (Let "x" (Num 3) (Add (Ref "x") (Ref "x")))))
 
-tc04 = TestCase (assertEqual "for let x = div (4,0) in 5"
+tc04 = TestCase (assertEqual "for let x = Add (4,0) in 5"
                              (NumValue 5)
-                             (eval (Let "x" (Div (Num 4) (Num 0)) (Num 5))))
+                             (eval (Let "x" (Add (Num 4) (Num 0)) (Num 5))))
 
 
-tc05 = TestCase (assertEqual "for let x = div (4,0) in let y = 5 in y"
-                             (ExpV (Num 5) [("x",ExpV (Div (Num 4) (Num 0)) [])])
-                             (eval (Let "x" (Div (Num 4) (Num 0)) (Let "y" (Num 5) (Ref "y")))))
+tc05 = TestCase (assertEqual "for let x = Add (4,0) in let y = 5 in y"
+                             (ExpV (Num 5) [("x",ExpV (Add (Num 4) (Num 0)) [])])
+                             (eval (Let "x" (Add (Num 4) (Num 0)) (Let "y" (Num 5) (Ref "y")))))
 
 tc06 = TestCase (assertEqual "for let x = 10 in let f = y -> x + y in let x = 5 in f (x + 3)"
                               (NumValue 18) 
