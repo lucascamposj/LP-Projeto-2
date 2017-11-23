@@ -28,6 +28,7 @@ data Exp = Num Integer
          | Lambda (FormalArg, Type) Exp
          | LambdaApp Exp Exp
          | IF0 Exp Exp Exp 
+         | IF Exp Exp Exp 
      deriving(Show, Eq)     
 
 -- | The environment with the list of deferred substitutions. 
@@ -75,7 +76,12 @@ interp (Div e1 e2) ds decs = NumValue (v1 `div` v2)
 -- note here that, to improve reuse, we actually
 -- convert a let exprssion in the equivalent
 -- lambda application (ela), and then interpret it.  
-interp (Let v e1 e2) ds decs = undefined
+
+--interp (Let () e1 e2) ds decs = interp ela ds decs 
+  --where ela = (LambdaApp (Lambda () e2) e1) 
+
+interp (Let v e1 e2) ds decs = undefined 
+  
 
 -- the interpreter for a reference to a variable.
 -- here, we make a lookup for the reference, in the
@@ -114,6 +120,29 @@ interp (LambdaApp e1 e2) ds decs = interp body env decs
     expV = ExpV e2 ds     
     env  = (farg,expV):ds0
 
+interp (IF0 cond true false) subs decs
+  | (interp cond subs decs) == (NumValue 0) = interp true subs decs
+  | otherwise = interp false subs decs
+
+interp (IF cond true false) subs decs
+  | (interp cond subs decs) == (BoolValue True) = interp true subs decs
+  | otherwise = interp false subs decs
+
+interp (And e1 e2) subs decs = BoolValue (i1 && i2) 
+  where 
+    BoolValue i1 = strict (interp e1 subs decs) decs
+    BoolValue i2 = strict (interp e2 subs decs) decs
+
+interp (Or e1 e2) subs decs = BoolValue (i1 || i2) 
+  where 
+    BoolValue i1 = strict (interp e1 subs decs) decs
+    BoolValue i2 = strict (interp e2 subs decs) decs    
+
+interp (Not e) subs decs = BoolValue (not(i)) 
+  where 
+    BoolValue i = strict (interp e subs decs) decs
+   
+
 strict :: Value -> [FunDec] -> Value
 strict n@(NumValue v) _ = n
 strict c@(Closure farg body ds) _ = c
@@ -126,29 +155,45 @@ lookup v f (x:xs)
  | v == f x = Just x
  | otherwise = lookup v f xs
 
+
 (|-) :: Gamma -> Exp -> Type
 (|-) _ (Bool b) = TBool 
 (|-) _ (Num n)  = TInt
-(|-) g (Ref v)  t = lookup gamma
-(|-) g (Add l r)    = if ((g `|-` l) == TInt) && (g `|-` r)) then  TInt else TError
-(|-) g (Sub l r)    = if ((g `|-` l) == TInt) && (g `|-` r)) then  TInt else TError
-(|-) g (Div l r)    = if ((g `|-` l) == TInt) && (g `|-` r)) then  TInt else TError
-(|-) g (IF0 c t e)  = if (tcond = TInt) && (tthen != TError) && (telse == tthen) then tthen else TError
+(|-) g (Ref v)  = 
+  let res = lookup v fst g
+  in case res of
+    (Nothing) -> error $ "variable " ++ v ++ " not found"
+    (Just (_, value)) -> value
+
+(|-) g (Add l r)    = if (((g |- l) == TInt) && (g |- r) == TInt) then  TInt else TError
+(|-) g (Sub l r)    = if (((g |- l) == TInt) && (g |- r) == TInt) then  TInt else TError
+(|-) g (Div l r)    = if (((g |- l) == TInt) && (g |- r) == TInt) then  TInt else TError
+(|-) g (IF0 c t e)  = if ((tcond == TInt) && (telse == tthen)) then tthen else TError
   where
-    tcond = g `|-` c
-    tthen = g `|-` t
-    telse = g `|-` e
-(|-) g (Let )     = adiciona no gamma e chama (|-) com gamma atualizado
-
-
-
-
-
-
-
-
-
-
-
+    tcond = g |- c
+    tthen = g |- t
+    telse = g |- e
+(|-) g (Let x e c)  = t2
+  where
+    t1 = g |- e
+    t2 = ((x, t1) : g) |- c
+(|-) g (Lambda (fa, t1) e) = TFunc t1 t2
+  where
+    t2 = ((fa,t1) : g ) |- e
+(|-) g (LambdaApp e1 e2) = if ta == t1 then t2 else TError
+  where
+    (TFunc t1 t2) = g |- e1
+    ta = g |- e2 
+(|-) g (And e1 e2) = if ((te1 == TBool) && (te2 == TBool)) then TBool else TError 
+  where
+    te1 = g |- e1
+    te2 = g |- e2
+(|-) g (Or e1 e2) = if ((te1 == TBool) && (te2 == TBool)) then TBool else TError 
+  where
+    te1 = g |- e1
+    te2 = g |- e2
+(|-) g (Not e) = if (te == TBool) then TBool else TError
+  where
+    te = g |- e
 
 
