@@ -146,6 +146,7 @@ interp (Not e) subs decs = BoolValue (not(i))
 strict :: Value -> [FunDec] -> Value
 strict n@(NumValue v) _ = n
 strict c@(Closure farg body ds) _ = c
+strict b@(BoolValue v) _ = b 
 strict (ExpV e1 ds) decs = strict (interp e1 ds decs) decs
 
 -- a new lookup function.   
