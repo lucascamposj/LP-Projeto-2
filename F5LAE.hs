@@ -55,6 +55,9 @@ interp :: Exp -> DefrdSub -> [FunDec] -> Value
 -- the simple interpreter for numbers. 
 interp (Num n) ds decs = NumValue n
 
+-- the interpreter for Bool 
+interp (Bool n) ds decs = BoolValue n 
+
 -- the interpreter for an add expression.                            
 interp (Add e1 e2) ds decs = NumValue (v1 + v2) 
   where
@@ -174,6 +177,13 @@ lookup v f (x:xs)
     tcond = g |- c
     tthen = g |- t
     telse = g |- e
+
+(|-) g (IF c t e)  = if ((tcond == TBool) && (telse == tthen)) then tthen else TError
+  where
+    tcond = g |- c
+    tthen = g |- t
+    telse = g |- e
+
 (|-) g (Let x e c)  = t2
   where
     t1 = g |- e
@@ -185,6 +195,9 @@ lookup v f (x:xs)
   where
     (TFunc t1 t2) = g |- e1
     ta = g |- e2 
+
+
+
 (|-) g (And e1 e2) = if ((te1 == TBool) && (te2 == TBool)) then TBool else TError 
   where
     te1 = g |- e1

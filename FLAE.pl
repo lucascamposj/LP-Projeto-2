@@ -46,8 +46,6 @@ eval(num(N), _, num(N)).
 
 eval(bool(B), _, bool(B)).
 
-eval(lambda(arg(X, Type), Term), _, lambda(arg(X, Type), Term)).
-
 eval(add(LHS, RHS), Gamma, num(X)) :-
     eval(LHS, Gamma, num(V1)),
     eval(RHS, Gamma, num(V2)),
@@ -56,14 +54,45 @@ eval(add(LHS, RHS), Gamma, num(X)) :-
 eval(sub(LHS, RHS), Gamma, num(X)) :-
     eval(LHS, Gamma, num(V1)),
     eval(RHS, Gamma, num(V2)),
-    X is V1 - V2. 
+    X is V1 - V2.    
 
-eval(or(LHS, RHS), Gamma, bool(false)) :-
-    eval(LHS, Gamma, bool(false)),
-    eval(RHS, Gamma, bool(false)),
-    !.                                          % note the use of the cut operator here!
+eval(div(LHS, RHS), Gamma, num(X)) :-
+    eval(LHS, Gamma, num(V1)),
+    eval(RHS, Gamma, num(V2)),
+    X is V1 / V2. 
 
-eval(or(_, _), _, bool(true)).
+eval(let(Var, Term1, Term2), Gamma, X) :-
+    env(Var, Term1, Gamma, NGamma),
+    eval(Term2, NGamma, X). 
+
+
+eval(var(V), Gamma, X) :-
+    lookup(V, Gamma, Term),
+    eval(Term, Gamma, X).
+
+
+eval(lambda(arg(X, Type), Term), _, lambda(arg(X, Type), Term)).
+
+eval(app(Term1, Term2), Gamma, X) :-
+    eval(Term1, Gamma, lambda(arg(Var, _), Body)),
+    eval(Term2, Gamma, Argument),               % inner most strategy!
+    env(Var, Argument, Gamma, NGamma),
+    eval(Body, NGamma, X).
+
+eval(if0(Cond, Then, _), Gamma, X) :-
+    eval(Cond, Gamma, num(0)),
+    eval(Then, Gamma, X),
+    !.
+
+eval(if0(_,_, Else), Gamma, Y) :-
+    eval(Else, Gamma, Y).
+
+eval(if(Cond, Then, _), Gamma, X) :-
+    eval(Cond, Gamma, bool(true)),
+    eval(Then, Gamma, X),
+    !.
+eval(if(_, _, Else), Gamma, Y) :-
+    eval(Else, Gamma, Y).
 
 eval(and(LHS, RHS), Gamma, bool(true)) :-
     eval(LHS, Gamma, bool(true)),
@@ -72,39 +101,20 @@ eval(and(LHS, RHS), Gamma, bool(true)) :-
 
 eval(and(_, _), _, bool(false)).
 
+eval(or(LHS, RHS), Gamma, bool(false)) :-
+    eval(LHS, Gamma, bool(false)),
+    eval(RHS, Gamma, bool(false)),
+    !.                                          % note the use of the cut operator here!
+
+eval(or(_, _), _, bool(true)).
+
+
 eval(not(V), Gamma, bool(true)) :-
     eval(V, Gamma, bool(false)),
     !.
 
 eval(not(_), _, bool(false)).
-
-eval(let(Var, Term1, Term2), Gamma, X) :-
-    env(Var, Term1, Gamma, NGamma),
-    eval(Term2, NGamma, X). 
-
-eval(var(V), Gamma, X) :-
-    lookup(V, Gamma, Term),
-    eval(Term, Gamma, X). 
-    
-eval(app(Term1, Term2), Gamma, X) :-
-    eval(Term1, Gamma, lambda(arg(Var, _), Body)),
-    eval(Term2, Gamma, Argument),               % inner most strategy!
-    env(Var, Argument, Gamma, NGamma),
-    eval(Body, NGamma, X).
-
-eval(if0(Cond, Then, Else), Gamma, X) :-
-    eval(Cond, Gamma, num(0)),
-    eval(Then, Gamma, X),
-    !.
-eval(if0(Cond, Then, Else), Gamma, Y)
-    eval(Else, Gamma, Y).
-
-eval(if(Cond, Then, Else), Gamma, X) :-
-    eval(Cond, Gamma, bool(true)),
-    eval(Then, Gamma, X),
-    !.
-eval(if(Cond, Then, Else), Gamma, Y) :-
-    eval(Else, Gamma, Y).
+ 
 
 env(Var, Term, Gamma, [map(Var, Term)|Gamma]). 
     
@@ -116,9 +126,12 @@ lookup(Var, [map(_, _)|Gamma], Term) :- lookup(Var, Gamma, Term).
 
 %% Type checker.
 
+tc(bool(_), _, bool).
+
 tc(num(_),  _, int).
 
-tc(bool(_), _, bool).
+tc(var(V), Gamma, X) :-
+    lookup(V, Gamma, X).
 
 tc(add(LHS, RHS), Gamma, int) :-
     tc(LHS, Gamma, int),
@@ -127,6 +140,34 @@ tc(add(LHS, RHS), Gamma, int) :-
 tc(sub(LHS, RHS), Gamma, int) :-
     tc(LHS, Gamma, int),
     tc(RHS, Gamma, int).
+
+tc(div(LHS, RHS), Gamma, int) :-
+    tc(LHS, Gamma, int),
+    tc(RHS, Gamma, int).
+
+tc(if0(Cond, Then, Else), Gamma, T1) :-
+    tc(Cond, Gamma, int),
+    tc(Then, Gamma, T1),
+    tc(Else, Gamma, T2),
+    T1 == T2.
+
+tc(if(Cond, Then, Else), Gamma, T1) :-
+    tc(Cond, Gamma, bool),
+    tc(Then, Gamma, T1),
+    tc(Else, Gamma, T2),
+    T1 == T2.
+
+tc(let(Var, Term1, Term2), Gamma, X) :-
+    tc(Term1, Gamma, T1),
+    tc(Term2,[map(Var, T1)|Gamma], X).
+
+tc(lambda(arg(_, T1), Term), Gamma, arrow(T1, T2)) :-
+    tc(Term, Gamma, T2). 
+
+tc(app(E1, E2), Gamma, T2) :-
+    tc(E1, Gamma, arrow(T1, T2)),
+    tc(E2, Gamma, Ta),
+    Ta == T1.
 
 tc(and(LHS, RHS), Gamma, bool) :-
     tc(LHS, Gamma, bool),
@@ -139,31 +180,5 @@ tc(or(LHS, RHS), Gamma, bool) :-
 tc(not(V), Gamma, bool) :-
     tc(V, Gamma, bool).
 
-tc(if(Cond, Then, Else), Gamma, T1) :-
-    tc(Cond, Gamma, bool),
-    tc(Then, Gamma, T1),
-    tc(Else, Gamma, T2),
-    T1 == T2.
-
-tc(if0(Cond, Then, Else), Gamma, T1) :-
-    tc(Cond, Gamma, int),
-    tc(Then, Gamma, T1),
-    tc(Else, Gamma, T2),
-    T1 == T2.
-
-tc(var(V), Gamma, X) :-
-    lookup(V, Gamma, X).
-
-tc(lambda(arg(_, T1), Term), Gamma, arrow(T1, T2)) :-
-    tc(Term, Gamma, T2). 
-
-tc(app(E1, E2), Gamma, T2) :-
-    tc(E1, Gamma, arrow(T1, T2)),
-    tc(E2, Gamma, Ta),
-    Ta == T1.
-
-tc(let(Var, Term1, Term2), Gamma, X) :-
-    tc(Term1, Gamma, T1),
-    tc(Term2,[map(Var, T1)|Gamma], X).
 
 %% eval(let(inc, lambda(arg(x,int), add(var(x), num(1))), app(var(inc),num(5))), [], X).
