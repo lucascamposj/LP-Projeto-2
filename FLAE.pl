@@ -161,8 +161,8 @@ tc(let(Var, Term1, Term2), Gamma, X) :-
     tc(Term1, Gamma, T1),
     tc(Term2,[map(Var, T1)|Gamma], X).
 
-tc(lambda(arg(_, T1), Term), Gamma, arrow(T1, T2)) :-
-    tc(Term, Gamma, T2). 
+tc(lambda(arg(V, T1), Term), Gamma, arrow(T1, T2)) :-
+    tc(Term, [map(V, T1)|Gamma], T2).
 
 tc(app(E1, E2), Gamma, T2) :-
     tc(E1, Gamma, arrow(T1, T2)),

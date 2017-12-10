@@ -1,4 +1,4 @@
-module F4LAE where 
+module F5LAE where 
 
 import Prelude hiding (lookup)
 
@@ -195,8 +195,6 @@ lookup v f (x:xs)
   where
     (TFunc t1 t2) = g |- e1
     ta = g |- e2 
-
-
 
 (|-) g (And e1 e2) = if ((te1 == TBool) && (te2 == TBool)) then TBool else TError 
   where
