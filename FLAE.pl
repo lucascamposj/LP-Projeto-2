@@ -53,12 +53,30 @@ eval(add(LHS, RHS), Gamma, num(X)) :-
     eval(RHS, Gamma, num(V2)),
     X is V1 + V2. 
 
+eval(sub(LHS, RHS), Gamma, num(X)) :-
+    eval(LHS, Gamma, num(V1)),
+    eval(RHS, Gamma, num(V2)),
+    X is V1 - V2. 
+
+eval(or(LHS, RHS), Gamma, bool(false)) :-
+    eval(LHS, Gamma, bool(false)),
+    eval(RHS, Gamma, bool(false)),
+    !.                                          % note the use of the cut operator here!
+
+eval(or(_, _), _, bool(true)).
+
 eval(and(LHS, RHS), Gamma, bool(true)) :-
     eval(LHS, Gamma, bool(true)),
     eval(RHS, Gamma, bool(true)),
     !.                                          % note the use of the cut operator here!
 
-eval(and(_, _), _, bool(false)). 
+eval(and(_, _), _, bool(false)).
+
+eval(not(V), Gamma, bool(true)) :-
+    eval(V, Gamma, bool(false)),
+    !.
+
+eval(not(_), _, bool(false)).
 
 eval(let(Var, Term1, Term2), Gamma, X) :-
     env(Var, Term1, Gamma, NGamma),
@@ -74,6 +92,20 @@ eval(app(Term1, Term2), Gamma, X) :-
     env(Var, Argument, Gamma, NGamma),
     eval(Body, NGamma, X).
 
+eval(if0(Cond, Then, Else), Gamma, X) :-
+    eval(Cond, Gamma, num(0)),
+    eval(Then, Gamma, X),
+    !.
+eval(if0(Cond, Then, Else), Gamma, Y)
+    eval(Else, Gamma, Y).
+
+eval(if(Cond, Then, Else), Gamma, X) :-
+    eval(Cond, Gamma, bool(true)),
+    eval(Then, Gamma, X),
+    !.
+eval(if(Cond, Then, Else), Gamma, Y) :-
+    eval(Else, Gamma, Y).
+
 env(Var, Term, Gamma, [map(Var, Term)|Gamma]). 
     
 %% The lookup predicate. 
@@ -88,10 +120,11 @@ tc(num(_),  _, int).
 
 tc(bool(_), _, bool).
 
-tc(lambda(arg(_, T1), Term), Gamma, arrow(T1, T2)) :-
-    tc(Term, Gamma, T2). 
-
 tc(add(LHS, RHS), Gamma, int) :-
+    tc(LHS, Gamma, int),
+    tc(RHS, Gamma, int).
+
+tc(sub(LHS, RHS), Gamma, int) :-
     tc(LHS, Gamma, int),
     tc(RHS, Gamma, int).
 
@@ -99,4 +132,38 @@ tc(and(LHS, RHS), Gamma, bool) :-
     tc(LHS, Gamma, bool),
     tc(RHS, Gamma, bool). 
 
-% eval(let(inc, lambda(arg(x,int), add(var(x), num(1))), app(var(inc),num(5))), [], X).
+tc(or(LHS, RHS), Gamma, bool) :-
+    tc(LHS, Gamma, bool),
+    tc(RHS, Gamma, bool). 
+
+tc(not(V), Gamma, bool) :-
+    tc(V, Gamma, bool).
+
+tc(if(Cond, Then, Else), Gamma, T1) :-
+    tc(Cond, Gamma, bool),
+    tc(Then, Gamma, T1),
+    tc(Else, Gamma, T2),
+    T1 == T2.
+
+tc(if0(Cond, Then, Else), Gamma, T1) :-
+    tc(Cond, Gamma, int),
+    tc(Then, Gamma, T1),
+    tc(Else, Gamma, T2),
+    T1 == T2.
+
+tc(var(V), Gamma, X) :-
+    lookup(V, Gamma, X).
+
+tc(lambda(arg(_, T1), Term), Gamma, arrow(T1, T2)) :-
+    tc(Term, Gamma, T2). 
+
+tc(app(E1, E2), Gamma, T2) :-
+    tc(E1, Gamma, arrow(T1, T2)),
+    tc(E2, Gamma, Ta),
+    Ta == T1.
+
+tc(let(Var, Term1, Term2), Gamma, X) :-
+    tc(Term1, Gamma, T1),
+    tc(Term2,[map(Var, T1)|Gamma], X).
+
+%% eval(let(inc, lambda(arg(x,int), add(var(x), num(1))), app(var(inc),num(5))), [], X).
