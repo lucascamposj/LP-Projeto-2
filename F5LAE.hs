@@ -22,7 +22,7 @@ data Exp = Num Integer
          | Sub Exp Exp
          | Div Exp Exp
          | And Exp Exp | Or Exp Exp | Not Exp 
-         | Let Id Exp Exp
+         | Let (Id,Type) Exp Exp
          | Ref Id 
          | App Name Exp 
          | Lambda (FormalArg, Type) Exp
@@ -83,8 +83,9 @@ interp (Div e1 e2) ds decs = NumValue (v1 `div` v2)
 --interp (Let () e1 e2) ds decs = interp ela ds decs 
   --where ela = (LambdaApp (Lambda () e2) e1) 
 
-interp (Let v e1 e2) ds decs = undefined 
-  
+interp (Let (v,t) e1 e2) ds decs = interp ela ds decs
+  where
+    ela = (LambdaApp (Lambda (v,t) e2) e1)
 
 -- the interpreter for a reference to a variable.
 -- here, we make a lookup for the reference, in the
