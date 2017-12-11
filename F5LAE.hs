@@ -12,7 +12,7 @@ data Type = TInt | TBool | TFunc Type Type | TError
  deriving(Show, Eq) 
 
 -- | A type for representing function declaration
-data FunDec = FunDec Name FormalArg Exp 
+data FunDec = FunDec Name (FormalArg, Type) Exp 
      deriving(Show, Eq)
 
 -- | The abstract syntax of F4LAE  
@@ -105,10 +105,10 @@ interp (App n e) ds decs =
   let res = lookup n (\(FunDec n _ _) -> n) decs
   in case res of
     (Nothing) -> error $ "funtion " ++ n ++ " not found"
-    (Just (FunDec _ farg body)) -> interp body env decs
+    (Just (FunDec _ (farg, _) body)) -> interp body env decs
      where
        expV = ExpV e ds
-       env = [(farg, expV)] 
+       env = [(farg, expV)]
 
 -- the interpreter for a lambda abstraction.
 -- that is the most interesting case (IMO). it
@@ -185,10 +185,11 @@ lookup v f (x:xs)
     tthen = g |- t
     telse = g |- e
 
-(|-) g (Let x e c)  = t2
+(|-) g (Let (x,t) e c)  = t2
   where
-    t1 = g |- e
+    t1 = if ((g |- e) == t) then t else TError
     t2 = ((x, t1) : g) |- c
+
 (|-) g (Lambda (fa, t1) e) = TFunc t1 t2
   where
     t2 = ((fa,t1) : g ) |- e
