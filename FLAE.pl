@@ -73,7 +73,7 @@ eval(var(V), Gamma, X) :-
 
 eval(lambda(arg(X, Type), Term), _, lambda(arg(X, Type), Term)).
 
-eval(app(Term1, Term2), Gamma, X) :-
+eval(lambdaApp(Term1, Term2), Gamma, X) :-
     eval(Term1, Gamma, lambda(arg(Var, _), Body)),
     eval(Term2, Gamma, Argument),               % inner most strategy!
     env(Var, Argument, Gamma, NGamma),
@@ -164,7 +164,7 @@ tc(let(Var, Term1, Term2), Gamma, X) :-
 tc(lambda(arg(V, T1), Term), Gamma, arrow(T1, T2)) :-
     tc(Term, [map(V, T1)|Gamma], T2).
 
-tc(app(E1, E2), Gamma, T2) :-
+tc(lambdaApp(E1, E2), Gamma, T2) :-
     tc(E1, Gamma, arrow(T1, T2)),
     tc(E2, Gamma, Ta),
     Ta == T1.
